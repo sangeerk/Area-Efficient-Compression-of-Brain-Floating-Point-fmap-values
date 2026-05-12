@@ -7,7 +7,7 @@ Delta Encoding for exponent redundancy reduction
 Variable-length bit packing and unpacking
 AXI4-Stream wrappers for compressor and decompressor
 Fully implemented in Verilog
-Functional verification using real neural network activation data
+Functional verification using real neural network activation data 
 Compression Flow
 ZRLE Encoder
 Detects consecutive zero values and encodes run lengths efficiently.
