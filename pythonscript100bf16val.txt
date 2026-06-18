@@ -1,0 +1,71 @@
+import os
+import struct
+import random
+import torchvision.models as models
+import torch
+import torch.nn as nn
+from google.colab import files  # Special Colab module for browser downloads
+
+def fp32_to_bf16_hex(fp32_float):
+    """Converts a standard Python float to its 16-bit bf16 hexadecimal string representation."""
+    packed = struct.pack('>f', fp32_float)
+    full_bits = struct.unpack('>I', packed)[0]
+    bf16_bits = (full_bits >> 16) & 0xFFFF
+    return f"{bf16_bits:04x}"
+
+def main():
+    # 1. Load the pretrained ResNet-34 model from torchvision
+    print("Loading pretrained ResNet-34 model...")
+    weights = models.ResNet34_Weights.DEFAULT
+    model = models.resnet34(weights=weights)
+
+    # 2. Cast the entire model to bfloat16 (bf16)
+    model = model.to(dtype=torch.bfloat16)
+    model.eval()
+
+    captured_fmap = None
+
+    # 3. Hook logic to extract data
+    def hook_fn(module, input, output):
+        nonlocal captured_fmap
+        captured_fmap = output.detach()
+
+    # Target the very first ReLU layer in the ResNet-34 backbone
+    target_layer = model.relu
+    hook_handle = target_layer.register_forward_hook(hook_fn)
+
+    # 4. Run forward pass
+    dummy_input = torch.randn(1, 3, 224, 224, dtype=torch.bfloat16)
+    print("Running forward pass in bfloat16 precision...")
+    with torch.no_grad():
+        _ = model(dummy_input)
+
+    # Clean up hook
+    hook_handle.remove()
+
+    # 5. Extract 100 values and trigger browser download
+    if captured_fmap is not None:
+        flattened_values = captured_fmap.flatten()
+        extracted_100 = flattened_values[:100]
+        
+        filename = "bf16_fmaps_hex.txt"
+        
+        # Write the file inside the temporary Google Colab environment
+        with open(filename, "w") as f_hex:
+            for val in extracted_100:
+                f_hex.write(f"{fp32_to_bf16_hex(val.item())}\n")
+                
+        print("\n" + "="*50)
+        print("FILE GENERATED SUCCESSFULLY IN COLAB")
+        print("="*50)
+        print("Triggering your web browser download mechanism now...")
+        
+        # THIS LINE FORCES YOUR BROWSER TO DOWNLOAD IT TO YOUR PC'S DOWNLOADS FOLDER
+        files.download(filename)
+        
+    else:
+        print("Error: Failed to capture feature maps.")
+
+if __name__ == "__main__":
+    main()
+
